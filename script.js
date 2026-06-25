@@ -39,29 +39,29 @@ let audiosInicializados = false;
 function carregarAudiosDoJogo() {
     if(audiosInicializados) return;
 
-    carregadorAudio.load('musica_fundo.mp3', (buffer) => {
+    carregadorAudio.load('sounds/som_fundo_vento.mp3', (buffer) => {
         somMusicaFundo.setBuffer(buffer);
         somMusicaFundo.setLoop(true);
         somMusicaFundo.setVolume(0.4);
         somMusicaFundo.play();
     }, undefined, (e) => console.log("Áudio indisponível. Pronto para receber musica_fundo.mp3"));
 
-    carregadorAudio.load('salto.mp3', (buffer) => {
+    carregadorAudio.load('sounds/salto_lua.mp3', (buffer) => {
         somSalto.setBuffer(buffer);
         somSalto.setVolume(0.5);
     });
 
-    carregadorAudio.load('coleta_fragmento.mp3', (buffer) => {
+    carregadorAudio.load('sounds/coletar_fragmento.mp3', (buffer) => {
         somColetaFragmento.setBuffer(buffer);
         somColetaFragmento.setVolume(0.6);
     });
 
-    carregadorAudio.load('coleta_tanque.mp3', (buffer) => {
+    carregadorAudio.load('sounds/coletar_fragmento.mp3', (buffer) => {
         somColetaTanque.setBuffer(buffer);
         somColetaTanque.setVolume(0.6);
     });
 
-    carregadorAudio.load('passos.mp3', (buffer) => {
+    carregadorAudio.load('sounds/run.mp3', (buffer) => {
         somPassos.setBuffer(buffer);
         somPassos.setLoop(true);
         somPassos.setVolume(0.3);
@@ -205,6 +205,8 @@ window.addEventListener('touchend', (e) => {
 });
 
 // Rotação Direito Touch
+        
+        // Rotação Direito Touch (CORRIGIDO: Sem tombar para os lados)
 let camId = null;
 let pCamAntiga = { x: 0, y: 0 };
 const sensibilidadeMobile = 0.004;
@@ -217,18 +219,42 @@ zonaCamera.addEventListener('touchstart', (e) => {
         }
     }
 });
+
 zonaCamera.addEventListener('touchmove', (e) => {
     for(let t of e.touches) {
         if(t.identifier === camId) {
             let dx = t.clientX - pCamAntiga.x;
             let dy = t.clientY - pCamAntiga.y;
 
-            camera.rotation.y -= dx * sensibilidadeMobile;
-            camera.rotation.x -= dy * sensibilidadeMobile;
-            camera.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, camera.rotation.x));
+            // Cria um quaternion para a rotação horizontal (Y) baseada no mundo global
+            const qY = new THREE.Quaternion();
+            qY.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * sensibilidadeMobile);
+            
+            // Cria um quaternion para a rotação vertical (X) baseada no eixo local da câmera
+            const qX = new THREE.Quaternion();
+            qX.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -dy * sensibilidadeMobile);
+
+            // Aplica primeiro a rotação horizontal global, depois a vertical local
+            camera.quaternion.premultiply(qY);
+            camera.quaternion.multiply(qX);
+
+            // Remove qualquer inclinação indesejada no eixo Z (roll)
+            const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+            euler.z = 0; 
+
+            // Limita o ângulo para olhar para cima e para baixo (evita dar uma cambalhota)
+            euler.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, euler.x));
+            
+            camera.quaternion.setFromEuler(euler);
 
             pCamAntiga.x = t.clientX; pCamAntiga.y = t.clientY;
         }
+    }
+});
+
+zonaCamera.addEventListener('touchend', (e) => {
+    for(let t of e.changedTouches) {
+        if(t.identifier === camId) camId = null;
     }
 });
 zonaCamera.addEventListener('touchend', (e) => {
